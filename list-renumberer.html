@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リスト番号振り直しツール</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════
+   THEME TOKENS
+═══════════════════════════════ */
+:root {
+  --mono: 'DM Mono', monospace;
+  --sans: 'Noto Sans JP', sans-serif;
+}
+[data-theme="dark"] {
+  --bg:       #0f0f11;
+  --surface:  #18181c;
+  --surface2: #222228;
+  --border:   #2e2e38;
+  --border2:  #3a3a48;
+  --text:     #e8e6f0;
+  --text2:    #9994b0;
+  --text3:    #5c5878;
+  --accent:   #7c6af7;
+  --accent2:  #a594f9;
+  --green:    #4caf88;
+  --amber:    #e8a838;
+  --grid-line: rgba(124,106,247,0.04);
+  --shadow:    0 2px 12px rgba(0,0,0,0.4);
+}
+[data-theme="light"] {
+  --bg:       #f5f4f8;
+  --surface:  #ffffff;
+  --surface2: #f0eef8;
+  --border:   #dddae8;
+  --border2:  #cac7d8;
+  --text:     #1a1828;
+  --text2:    #5a5470;
+  --text3:    #9994b0;
+  --accent:   #6b5ce7;
+  --accent2:  #7c6af7;
+  --green:    #2e9e6e;
+  --amber:    #c47f10;
+  --grid-line: rgba(107,92,231,0.05);
+  --shadow:    0 2px 12px rgba(100,90,160,0.1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: dark light; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  transition: background 0.2s, color 0.2s;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+/* ── header ── */
+header {
+  position: relative; z-index: 2;
+  padding: 1.2rem 2rem 1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 1rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.logo { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.04em; }
+.logo span { color: var(--accent2); }
+.logo-sub { font-size: 0.72rem; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; flex: 1; }
+
+/* theme toggle */
+.theme-btn {
+  margin-left: auto;
+  width: 36px; height: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 99px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.theme-btn::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: transform 0.2s, background 0.2s;
+}
+[data-theme="light"] .theme-btn::after {
+  transform: translateX(16px);
+  background: var(--accent);
+}
+.theme-label { font-size: 0.68rem; color: var(--text3); white-space: nowrap; }
+
+main {
+  position: relative; z-index: 1;
+  flex: 1; display: flex; flex-direction: column;
+  padding: 1.2rem 2rem 2rem;
+  max-width: 1260px; width: 100%; margin: 0 auto;
+}
+
+/* ── shared labels / dividers ── */
+.bar-label {
+  font-size: 0.68rem; color: var(--text3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.bar-div { width: 1px; height: 16px; background: var(--border2); flex-shrink: 0; }
+
+/* ── chip rows ── */
+.style-row {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px; margin-bottom: 0.8rem;
+}
+.chip {
+  font-family: var(--mono); font-size: 0.76rem;
+  padding: 4px 12px; border-radius: 99px;
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text2); cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+  letter-spacing: 0.02em; user-select: none;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent2); }
+.chip.active {
+  background: rgba(124,106,247,0.15);
+  border-color: var(--accent); color: var(--accent2);
+}
+[data-theme="light"] .chip.active { background: rgba(107,92,231,0.1); }
+.chip-strip { border-color: rgba(232,168,56,0.4) !important; color: var(--amber) !important; }
+.chip-strip.active { background: rgba(232,168,56,0.12) !important; border-color: var(--amber) !important; }
+
+/* ── detect row ── */
+#detect-row {
+  display: none;
+  margin-bottom: 0.7rem; font-size: 0.71rem; color: var(--text3);
+  align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.dbadge {
+  font-family: var(--mono); padding: 2px 10px; border-radius: 4px;
+  border: 1px solid rgba(124,106,247,0.3);
+  background: rgba(124,106,247,0.08); color: var(--accent2);
+}
+.sbadge {
+  font-family: var(--mono); padding: 2px 10px; border-radius: 4px;
+  border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
+}
+
+/* ── custom style panel ── */
+.collapsible {
+  margin-bottom: 0.8rem;
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.collapsible-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+.collapsible-head:hover { background: var(--surface2); }
+.collapsible-head.open { border-color: var(--border); }
+.coll-arrow {
+  font-size: 9px; color: var(--text3);
+  transition: transform 0.2s; display: inline-block; flex-shrink: 0;
+}
+.coll-arrow.open { transform: rotate(90deg); }
+.collapsible-body {
+  display: none; padding: 12px 14px 14px;
+  flex-direction: column; gap: 10px;
+}
+.collapsible-body.open { display: flex; }
+
+/* ── control bar ── */
+.ctrl-bar {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 10px; margin-bottom: 1rem;
+}
+select, input[type=number], input[type=text].adv-input {
+  font-family: var(--mono); font-size: 0.8rem;
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text2); outline: none; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%235c5878' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  background-color: var(--surface);
+}
+input[type=number] { width: 64px; padding-right: 6px; }
+select:hover, select:focus,
+input[type=number]:hover, input[type=number]:focus,
+input[type=text].adv-input:hover,
+input[type=text].adv-input:focus { border-color: var(--accent); }
+
+/* ── toggles ── */
+.tog {
+  font-family: var(--sans); font-size: 0.71rem;
+  padding: 4px 11px; border-radius: 5px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text3); cursor: pointer; transition: all 0.15s;
+  white-space: nowrap; user-select: none;
+}
+.tog:hover { border-color: var(--border); color: var(--text2); }
+.tog.on {
+  border-color: rgba(76,175,136,0.4);
+  background: rgba(76,175,136,0.1); color: var(--green);
+}
+[data-theme="light"] .tog.on { background: rgba(46,158,110,0.08); }
+
+/* buttons */
+.btn-run {
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 500;
+  padding: 6px 20px; border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: rgba(124,106,247,0.15); color: var(--accent2);
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-run:hover { background: rgba(124,106,247,0.28); }
+.btn-run svg { width: 14px; height: 14px; }
+.btn-adv {
+  font-family: var(--sans); font-size: 0.78rem; font-weight: 500;
+  padding: 5px 14px; border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text2);
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-adv:hover { border-color: var(--border); color: var(--text); }
+.btn-adv.active { border-color: var(--accent); color: var(--accent2); background: rgba(124,106,247,0.08); }
+.btn-adv svg { width: 13px; height: 13px; }
+.btn-sm {
+  font-family: var(--sans); font-size: 0.71rem;
+  padding: 3px 10px; border-radius: 5px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text3); cursor: pointer; transition: all 0.15s;
+}
+.btn-sm:hover { border-color: var(--border); color: var(--text2); }
+.btn-copy {
+  font-family: var(--sans); font-size: 0.75rem; font-weight: 500;
+  padding: 5px 16px; border-radius: 6px;
+  border: 1px solid rgba(76,175,136,0.4);
+  background: rgba(76,175,136,0.1); color: var(--green);
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.btn-copy:hover { background: rgba(76,175,136,0.22); }
+.btn-copy svg { width: 13px; height: 13px; }
+.btn-sample {
+  font-size: 0.71rem; padding: 3px 10px; border-radius: 5px;
+  border: 1px solid rgba(124,106,247,0.3);
+  background: rgba(124,106,247,0.07); color: var(--accent2);
+  cursor: pointer; transition: all 0.15s; font-family: var(--sans);
+}
+.btn-sample:hover { background: rgba(124,106,247,0.15); }
+
+/* ── advanced settings panel ── */
+#adv-panel {
+  display: none;
+  margin-bottom: 1rem;
+  padding: 14px 16px;
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  background: var(--surface);
+  flex-direction: column; gap: 12px;
+  animation: fadeIn 0.15s ease;
+}
+#adv-panel.open { display: flex; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+
+.adv-section { display: flex; flex-direction: column; gap: 8px; }
+.adv-section-title {
+  font-size: 0.68rem; color: var(--text3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.adv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.adv-hint { font-size: 0.7rem; color: var(--text3); line-height: 1.5; }
+
+/* row filter chips */
+.filter-chip {
+  font-family: var(--mono); font-size: 0.76rem;
+  padding: 4px 12px; border-radius: 6px;
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text2); cursor: pointer;
+  transition: all 0.15s; white-space: nowrap; user-select: none;
+}
+.filter-chip:hover { border-color: var(--accent); color: var(--accent2); }
+.filter-chip.active {
+  background: rgba(124,106,247,0.15);
+  border-color: var(--accent); color: var(--accent2);
+}
+.adv-input {
+  font-family: var(--mono); font-size: 0.8rem;
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text); outline: none; transition: border-color 0.15s;
+  width: 220px;
+}
+.adv-input:focus { border-color: var(--accent); }
+.adv-input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── panes ── */
+.panes { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+@media (max-width: 700px) {
+  .panes { grid-template-columns: 1fr; }
+  main { padding: 1rem 1rem 2rem; }
+  header { padding: 1rem; }
+}
+.pane { display: flex; flex-direction: column; gap: 8px; }
+.pane-header { display: flex; justify-content: space-between; align-items: center; }
+.pane-title { font-size: 0.67rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3); }
+
+textarea {
+  font-family: var(--mono); font-size: 0.875rem; line-height: 1.75;
+  padding: 14px 16px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); resize: vertical; min-height: 300px;
+  width: 100%; outline: none; transition: border-color 0.15s, background 0.15s;
+  caret-color: var(--accent2);
+}
+textarea:focus { border-color: var(--border2); }
+#out { color: var(--text2); background: var(--surface2); cursor: default; }
+#out.has-result { color: var(--text); }
+
+#out-rich {
+  display: none;
+  font-family: var(--mono); font-size: 0.875rem; line-height: 1.75;
+  padding: 14px 16px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface2);
+  min-height: 300px; overflow-y: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+.r-normal   { color: var(--text); }
+.r-inserted { color: var(--amber); }
+.r-skipped  { color: var(--text3); font-style: italic; }
+
+.badge-count {
+  font-family: var(--mono); font-size: 0.67rem;
+  padding: 2px 8px; border-radius: 4px;
+  background: rgba(76,175,136,0.12); color: var(--green);
+  border: 1px solid rgba(76,175,136,0.25);
+}
+.copy-ok {
+  font-size: 0.71rem; color: var(--green);
+  opacity: 0; transition: opacity 0.2s; white-space: nowrap;
+}
+.copy-ok.show { opacity: 1; }
+.hint { font-size: 0.71rem; color: var(--text3); line-height: 1.6; }
+
+/* ── custom chip panel ── */
+.cp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cp-label { font-size: 0.68rem; color: var(--text3); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; min-width: 60px; }
+.cp-input {
+  font-family: var(--mono); font-size: 0.8rem;
+  padding: 5px 10px; border-radius: 6px;
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text); outline: none; transition: border-color 0.15s;
+  flex: 1; min-width: 120px;
+}
+.cp-input:focus { border-color: var(--accent); }
+.cp-preview {
+  font-family: var(--mono); font-size: 0.78rem;
+  color: var(--accent2); white-space: nowrap;
+  padding: 4px 10px; border-radius: 5px;
+  background: rgba(124,106,247,0.08);
+  border: 1px solid rgba(124,106,247,0.2);
+  min-width: 80px;
+}
+.btn-add {
+  font-family: var(--sans); font-size: 0.74rem; font-weight: 500;
+  padding: 5px 14px; border-radius: 6px;
+  border: 1px solid rgba(124,106,247,0.4);
+  background: rgba(124,106,247,0.1); color: var(--accent2);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.btn-add:hover { background: rgba(124,106,247,0.22); }
+.btn-add:disabled { opacity: 0.35; cursor: default; }
+.custom-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip-custom {
+  font-family: var(--mono); font-size: 0.76rem;
+  padding: 4px 10px 4px 12px; border-radius: 99px;
+  border: 1px solid rgba(124,106,247,0.35);
+  background: var(--surface);
+  color: var(--text2); cursor: pointer;
+  transition: all 0.15s; white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+  user-select: none;
+}
+.chip-custom:hover { border-color: var(--accent); color: var(--accent2); }
+.chip-custom.active {
+  background: rgba(124,106,247,0.15);
+  border-color: var(--accent); color: var(--accent2);
+}
+.chip-del {
+  font-size: 11px; color: var(--text3); line-height: 1;
+  padding: 1px 2px; border-radius: 3px;
+  transition: color 0.12s;
+}
+.chip-custom:hover .chip-del { color: var(--text2); }
+.chip-del:hover { color: #e05555 !important; }
+
+footer {
+  position: relative; z-index: 1;
+  text-align: center; padding: 1rem;
+  font-size: 0.67rem; color: var(--text3);
+  letter-spacing: 0.04em; border-top: 1px solid var(--border);
+}
+
+/* ── help button ── */
+.btn-help {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border2); background: var(--surface2);
+  color: var(--text3); font-size: 0.82rem; font-weight: 700;
+  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-left: 8px; font-family: var(--sans);
+}
+.btn-help:hover { border-color: var(--accent); color: var(--accent2); background: rgba(124,106,247,0.1); }
+
+/* ── modal ── */
+#help-overlay {
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  align-items: center; justify-content: center; padding: 1rem;
+}
+[data-theme="light"] #help-overlay { background: rgba(80,70,130,0.25); }
+#help-overlay.open { display: flex; }
+#help-modal {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 16px; width: 100%; max-width: 680px; max-height: 88vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5); overflow: hidden;
+  animation: modalIn 0.18s cubic-bezier(0.34,1.4,0.64,1);
+}
+[data-theme="light"] #help-modal { box-shadow: 0 8px 40px rgba(80,70,130,0.18); }
+@keyframes modalIn {
+  from { opacity:0; transform: scale(0.94) translateY(8px); }
+  to   { opacity:1; transform: none; }
+}
+.modal-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.modal-title { font-size: 0.95rem; font-weight: 700; letter-spacing: 0.02em; flex: 1; }
+.modal-title span { color: var(--accent2); }
+.btn-modal-close {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border2); background: transparent;
+  color: var(--text3); font-size: 1rem; cursor: pointer; transition: all 0.12s;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-modal-close:hover { background: var(--surface2); color: var(--text); }
+.modal-tabs {
+  display: flex; gap: 4px; padding: 10px 20px 0;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap;
+}
+.mtab {
+  font-family: var(--sans); font-size: 0.75rem; font-weight: 500;
+  padding: 6px 14px; border-radius: 6px 6px 0 0;
+  border: 1px solid transparent; border-bottom: none;
+  color: var(--text3); cursor: pointer; transition: all 0.13s;
+  margin-bottom: -1px; background: transparent; white-space: nowrap;
+}
+.mtab:hover { color: var(--text2); }
+.mtab.active {
+  background: var(--surface); border-color: var(--border);
+  border-bottom-color: var(--surface); color: var(--accent2);
+}
+.modal-body { overflow-y: auto; padding: 20px 22px 24px; flex: 1; }
+.modal-page { display: none; flex-direction: column; gap: 18px; }
+.modal-page.active { display: flex; }
+
+/* help content */
+.help-section { display: flex; flex-direction: column; gap: 8px; }
+.help-h {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--accent2);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.help-p { font-size: 0.82rem; color: var(--text2); line-height: 1.8; }
+.help-p code {
+  font-family: var(--mono); font-size: 0.78rem;
+  background: var(--surface2); padding: 1px 6px; border-radius: 4px;
+  border: 1px solid var(--border2); color: var(--accent2);
+}
+.help-row {
+  display: grid; grid-template-columns: 150px 1fr;
+  gap: 10px; font-size: 0.81rem; line-height: 1.6; align-items: start;
+}
+.help-row dt {
+  font-family: var(--mono); font-size: 0.77rem; color: var(--accent2);
+  background: rgba(124,106,247,0.08); padding: 3px 8px; border-radius: 5px;
+  border: 1px solid rgba(124,106,247,0.2); white-space: nowrap; align-self: start;
+}
+.help-row dd { color: var(--text2); }
+.help-example {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: var(--mono); font-size: 0.8rem;
+  line-height: 2; color: var(--text2); white-space: pre;
+}
+.ex-label {
+  font-size: 0.67rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text3); margin-bottom: 4px;
+}
+.ex-inserted { color: var(--amber); }
+.ex-skipped  { color: var(--text3); font-style: italic; }
+.ex-normal   { color: var(--text); }
+.arr-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; color: var(--text3); font-size: 0.78rem; padding: 4px 0;
+}
+.arr-row svg { color: var(--accent2); }
+.tip-box {
+  background: rgba(124,106,247,0.06); border: 1px solid rgba(124,106,247,0.2);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: 0.8rem; color: var(--text2); line-height: 1.75;
+}
+.tip-box strong { color: var(--accent2); }
+.kbd {
+  font-family: var(--mono); font-size: 0.75rem;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-bottom: 2px solid var(--border2);
+  padding: 1px 7px; border-radius: 4px; color: var(--text2);
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Re<span>#</span>Number</div>
+  <div class="logo-sub">番号付きリスト 振り直しツール</div>
+  <span class="theme-label" id="theme-label">Light</span>
+  <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" title="ライト / ダークモード切替"></button>
+  <button class="btn-help" onclick="openHelp()" title="使い方">?</button>
+</header>
+
+<main>
+
+  <!-- Mode + Style chips -->
+  <div class="style-row">
+    <span class="bar-label" style="margin-right:2px">モード</span>
+    <span class="chip active" id="chip-auto"  onclick="setMode('auto')">自動検出</span>
+    <span class="chip chip-strip" id="chip-strip" onclick="setMode('strip')">番号を削除</span>
+    <span class="bar-div"></span>
+    <span class="bar-label" style="margin-right:2px">スタイル指定</span>
+    <div id="chips" style="display:inline-flex;flex-wrap:wrap;gap:8px"></div>
+  </div>
+
+  <!-- Detected info -->
+  <div id="detect-row">
+    <span>検出：</span>
+    <span id="detect-badge" class="dbadge"></span>
+    <span id="detect-sep-badge" class="sbadge"></span>
+  </div>
+
+  <!-- Custom style panel -->
+  <div class="collapsible" id="custom-panel">
+    <div class="collapsible-head" id="custom-panel-head" onclick="toggleCollapsible('custom')">
+      <span class="coll-arrow" id="custom-arrow">▶</span>
+      <span class="bar-label" style="letter-spacing:0.06em">カスタムスタイル</span>
+      <span style="font-size:0.71rem;color:var(--text3)">{n} で番号位置を指定して独自フォーマットを作成</span>
+    </div>
+    <div class="collapsible-body" id="custom-body">
+      <div class="cp-row">
+        <span class="cp-label">テンプレート</span>
+        <input class="cp-input" id="cp-tpl" placeholder="例: 第{n}回　/ Step {n}.　/ ({n})" maxlength="40" oninput="updateCpPreview()">
+        <span class="cp-preview" id="cp-preview">—</span>
+      </div>
+      <div class="cp-row">
+        <span class="cp-label">名前</span>
+        <input class="cp-input" id="cp-name" placeholder="例: 第n回　（省略可）" maxlength="20" style="max-width:200px">
+        <button class="btn-add" id="cp-add-btn" onclick="addCustomStyle()" disabled>＋ 追加</button>
+        <span style="font-size:0.7rem;color:var(--text3)">{n} が番号に置き換わります。省略時は先頭に付きます。</span>
+      </div>
+      <div class="cp-row" id="cp-list-row" style="display:none">
+        <span class="cp-label">保存済み</span>
+        <div class="custom-chips" id="cp-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="ctrl-bar">
+    <span class="bar-label">区切り文字</span>
+    <select id="sep" onchange="onSepChange()">
+      <option value="、">、（読点）</option>
+      <option value=". ">. （ドット）</option>
+      <option value="）">）（全角括弧）</option>
+      <option value=") ">)  （半角括弧）</option>
+      <option value="：">：（コロン）</option>
+      <option value=" "> 　（スペース）</option>
+    </select>
+
+    <span class="bar-div"></span>
+    <span class="bar-label">開始番号</span>
+    <input type="number" id="start-num" value="1" min="1" max="9999">
+
+    <span class="bar-div"></span>
+    <span class="bar-label">空行</span>
+    <span class="tog on" id="tog-keep"   onclick="setBlankMode('keep')">保持</span>
+    <span class="tog"    id="tog-skip"   onclick="setBlankMode('skip')">番号スキップ</span>
+    <span class="tog"    id="tog-remove" onclick="setBlankMode('remove')">削除</span>
+
+    <span class="bar-div"></span>
+    <span class="tog on" id="tog-hl" onclick="toggleHl()">挿入行を強調</span>
+
+    <span class="bar-div"></span>
+    <!-- Advanced settings button -->
+    <button class="btn-adv" id="adv-btn" onclick="toggleAdvPanel()">
+      <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.42 1.42M11.53 11.53l1.42 1.42M3.05 12.95l1.42-1.42M11.53 4.47l1.42-1.42" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      詳細設定
+    </button>
+
+    <button class="btn-run" onclick="renumber()">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M2 8h9M8 5l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      振り直す
+    </button>
+  </div>
+
+  <!-- Advanced settings panel -->
+  <div id="adv-panel">
+
+    <div class="adv-section">
+      <div class="adv-section-title">番号を振る行の絞り込み</div>
+      <div class="adv-row">
+        <span class="filter-chip active" id="fc-all"    onclick="setRowFilter('all')">すべての行</span>
+        <span class="filter-chip"        id="fc-odd"    onclick="setRowFilter('odd')">奇数行のみ</span>
+        <span class="filter-chip"        id="fc-even"   onclick="setRowFilter('even')">偶数行のみ</span>
+        <span class="filter-chip"        id="fc-custom" onclick="setRowFilter('custom')">行番号を指定</span>
+      </div>
+      <div class="adv-row" id="adv-rows-input" style="display:none">
+        <input type="text" class="adv-input" id="row-spec" placeholder="例: 1,3,5-8,10" oninput="renumber()">
+        <span class="adv-hint">カンマ区切り、範囲は <code style="font-family:var(--mono);font-size:0.78rem">5-8</code> で指定。番号を振らない行は元のテキストのまま出力されます。</span>
+      </div>
+    </div>
+
+    <div class="adv-section">
+      <div class="adv-section-title">番号を振らない行の出力</div>
+      <div class="adv-row">
+        <span class="tog on"  id="tog-keep-skip"   onclick="setSkipOutput('keep')">テキストをそのまま出力</span>
+        <span class="tog"     id="tog-blank-skip"  onclick="setSkipOutput('blank')">空行として出力</span>
+        <span class="tog"     id="tog-remove-skip" onclick="setSkipOutput('remove')">行ごと削除</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Panes -->
+  <div class="panes">
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">Input　入力</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sample" onclick="loadExample()">サンプル</button>
+          <button class="btn-sm" onclick="clearInp()">クリア</button>
+        </div>
+      </div>
+      <textarea id="inp" placeholder="番号付きリストを貼り付けてください。&#10;番号のない行は「挿入項目」として扱われます。&#10;&#10;例：&#10;[1] ゼロマキナをサーチ&#10;挿入行&#10;[2] ゼロマキナをセッティング"></textarea>
+      <div class="hint">番号形式を自動検出します。番号のない行が挿入項目として認識されます。</div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-header">
+        <span class="pane-title">Output　出力</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="copy-ok" id="copyok">コピーしました</span>
+          <span class="badge-count" id="counter" style="display:none"></span>
+          <button class="btn-copy" onclick="copyOut()">
+            <svg viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            コピー
+          </button>
+        </div>
+      </div>
+      <textarea id="out" readonly placeholder="結果がここに表示されます"></textarea>
+      <div id="out-rich"></div>
+      <div class="hint" id="msg"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ═══ HELP MODAL ═══ -->
+<div id="help-overlay" onclick="overlayClick(event)">
+  <div id="help-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-text">
+
+    <div class="modal-header">
+      <div class="modal-title"><span>Re#</span>Number　<span style="font-weight:400;font-size:0.82rem;color:var(--text3)">使い方ガイド</span></div>
+      <button class="btn-modal-close" onclick="closeHelp()" aria-label="閉じる">✕</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="mtab active" onclick="switchTab(0)">基本の使い方</button>
+      <button class="mtab" onclick="switchTab(1)">番号スタイル</button>
+      <button class="mtab" onclick="switchTab(2)">カスタムスタイル</button>
+      <button class="mtab" onclick="switchTab(3)">詳細設定</button>
+      <button class="mtab" onclick="switchTab(4)">ショートカット</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- TAB 0: 基本 -->
+      <div class="modal-page active">
+
+        <div class="help-section">
+          <div class="help-h">このツールでできること</div>
+          <div class="help-p">番号付きリストに項目を挿入・削除したとき、番号を自動で振り直します。入力テキストの番号形式を自動検出するので、貼り付けるだけで使えます。</div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">基本の手順</div>
+          <div class="help-p">
+            <b style="color:var(--text)">① 入力欄にリストを貼り付ける</b><br>
+            番号付きの行と、番号のない行（挿入したい項目）を混在させてください。<br><br>
+            <b style="color:var(--text)">② 自動で振り直される</b><br>
+            入力と同時にリアルタイムで番号が振り直されます。<br><br>
+            <b style="color:var(--text)">③ コピーボタンで結果を取得</b><br>
+            出力欄右上の「コピー」ボタンで結果をクリップボードにコピーします。
+          </div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">例：項目の挿入</div>
+          <div class="ex-label">入力</div>
+          <div class="help-example"><span class="ex-normal">[1] ゼロマキナをサーチ（地獄門効果）</span>
+<span class="ex-inserted">挿入行（番号なし）</span>
+<span class="ex-normal">[2] ゼロマキナをセッティング</span>
+<span class="ex-normal">[3] 効果発動</span></div>
+          <div class="arr-row">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M4 10l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            振り直し後
+          </div>
+          <div class="help-example"><span class="ex-normal">[1] ゼロマキナをサーチ（地獄門効果）</span>
+<span class="ex-inserted">[2] 挿入行（番号なし）</span>
+<span class="ex-normal">[3] ゼロマキナをセッティング</span>
+<span class="ex-normal">[4] 効果発動</span></div>
+          <div class="tip-box"><strong>オレンジ色</strong>で表示される行が、今回新しく挿入された項目です（「挿入行を強調」がオンのとき）。</div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">モード</div>
+          <dl>
+            <div class="help-row"><dt>自動検出</dt><dd>入力リストの番号形式・区切り文字を自動で読み取り、同じ形式で出力します。</dd></div>
+            <div class="help-row" style="margin-top:6px"><dt>番号を削除</dt><dd>番号を取り除いてプレーンテキストにします。</dd></div>
+            <div class="help-row" style="margin-top:6px"><dt>スタイル指定</dt><dd>チップをクリックして出力の番号形式を手動指定します。</dd></div>
+          </dl>
+        </div>
+
+      </div>
+
+      <!-- TAB 1: 番号スタイル -->
+      <div class="modal-page">
+
+        <div class="help-section">
+          <div class="help-h">対応している番号スタイル（自動検出）</div>
+          <div class="help-p">以下の形式はすべて入力・出力ともに対応しています。自動検出モードでは入力の最初の番号付き行を読み取って形式を判定します。</div>
+          <dl>
+            <div class="help-row"><dt>1 2 3</dt><dd>半角算用数字</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>１ ２ ３</dt><dd>全角算用数字</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>一 二 三</dt><dd>漢数字（〜三十まで対応）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>① ② ③</dt><dd>丸数字（〜⑳）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>❶ ❷ ❸</dt><dd>黒丸数字（〜❿）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>(1)(2)(3)</dt><dd>半角括弧</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>（1）（2）</dt><dd>全角括弧</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>[1][2][3]</dt><dd>半角角括弧</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>【1】【2】</dt><dd>全角角括弧</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>i ii iii</dt><dd>ローマ数字（小文字）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>I II III</dt><dd>ローマ数字（大文字）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>a b c</dt><dd>アルファベット（小文字・〜z）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>A B C</dt><dd>アルファベット（大文字・〜Z）</dd></div>
+          </dl>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">区切り文字</div>
+          <div class="help-p">番号と本文の間の区切り文字を選択できます。自動検出モードでは入力から読み取った区切り文字が自動でセットされます。</div>
+          <div class="help-p">対応：<code>、</code>（読点）　<code>.</code>（ドット）　<code>）</code><code>)</code>（括弧）　<code>：</code>（コロン）　スペース　なし</div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">開始番号</div>
+          <div class="help-p">デフォルトは <code>1</code> から始まりますが、任意の数字に変更できます。リストの途中だけを貼り付けて続きから振り直したいときに便利です。</div>
+        </div>
+
+      </div>
+
+      <!-- TAB 2: カスタムスタイル -->
+      <div class="modal-page">
+
+        <div class="help-section">
+          <div class="help-h">テンプレート文字列で独自フォーマットを作成</div>
+          <div class="help-p"><code>{n}</code> と書いた箇所が番号に置き換わります。<code>{n}</code> を省略した場合は先頭に番号が付きます。</div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">テンプレート例</div>
+          <dl>
+            <div class="help-row"><dt>第{n}回</dt><dd>→ 第1回、第2回、第3回…</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>Step {n}.</dt><dd>→ Step 1. Step 2. Step 3.…</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>No.{n} </dt><dd>→ No.1 No.2 No.3…（末尾スペースで区切り）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>({n})</dt><dd>→ (1) (2) (3)…（区切り文字別途指定）</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>STEP{n}：</dt><dd>→ STEP1：STEP2：STEP3：…</dd></div>
+          </dl>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">保存と切り替え</div>
+          <div class="help-p">
+            名前をつけて「＋ 追加」すると、スタイル指定チップの下に保存されます。<br>
+            チップをクリックで切り替え、<strong style="color:var(--text)">✕</strong> で削除できます。<br>
+            保存したスタイルはブラウザに記録されるため、次回起動時も残ります。
+          </div>
+        </div>
+
+        <div class="tip-box"><strong>ヒント：</strong>テンプレートに区切り文字を含めた場合（例：<code>第{n}回　</code>の末尾スペース）、「区切り文字」セレクトは無視されます。</div>
+
+      </div>
+
+      <!-- TAB 3: 詳細設定 -->
+      <div class="modal-page">
+
+        <div class="help-section">
+          <div class="help-h">番号を振る行の絞り込み</div>
+          <dl>
+            <div class="help-row"><dt>すべての行</dt><dd>デフォルト。全行に番号を振ります。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>奇数行のみ</dt><dd>1・3・5…行目（空行・挿入行を含む内容行の奇数番目）に番号を振ります。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>偶数行のみ</dt><dd>2・4・6…行目に番号を振ります。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>行番号を指定</dt><dd>テキストボックスに番号を入力します。<br>例：<code>1,3,5-8,10</code> → 1・3・5・6・7・8・10行目</dd></div>
+          </dl>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">番号を振らない行の出力</div>
+          <dl>
+            <div class="help-row"><dt>そのまま出力</dt><dd>番号なしで本文をそのまま出力。強調表示がオンのときは斜体グレーで表示されます。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>空行として出力</dt><dd>番号を振らない行を空行に変換します。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>行ごと削除</dt><dd>番号を振らない行を出力から除外します。</dd></div>
+          </dl>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">空行の扱い</div>
+          <dl>
+            <div class="help-row"><dt>保持</dt><dd>空行をそのまま出力します。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>番号スキップ</dt><dd>空行を保持しますが、番号カウントには含めません。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>削除</dt><dd>空行を出力から除外します。</dd></div>
+          </dl>
+        </div>
+
+      </div>
+
+      <!-- TAB 4: ショートカット -->
+      <div class="modal-page">
+
+        <div class="help-section">
+          <div class="help-h">キーボードショートカット</div>
+          <dl>
+            <div class="help-row">
+              <dt><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></dt>
+              <dd>番号を振り直す（入力と同時に自動実行されますが、手動トリガーとしても使えます）</dd>
+            </div>
+            <div class="help-row" style="margin-top:8px">
+              <dt><span class="kbd">Esc</span></dt>
+              <dd>このヘルプモーダルを閉じる</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="help-section">
+          <div class="help-h">その他の操作</div>
+          <dl>
+            <div class="help-row"><dt>リアルタイム変換</dt><dd>入力欄に文字を入力するたびに自動で振り直しが実行されます。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>サンプルボタン</dt><dd>入力欄にサンプルデータを読み込んで動作確認できます。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>コピーボタン</dt><dd>出力テキストをクリップボードにコピーします。「コピーしました」と表示されます。</dd></div>
+            <div class="help-row" style="margin-top:5px"><dt>テーマ切替</dt><dd>ヘッダー右端のトグルでダーク／ライトモードを切り替えます。設定はブラウザに保存されます。</dd></div>
+          </dl>
+        </div>
+
+        <div class="tip-box"><strong>ヒント：</strong>モーダルの外側をクリックするか <span class="kbd">Esc</span> キーで閉じられます。</div>
+
+      </div>
+
+    </div><!-- /modal-body -->
+  </div><!-- /help-modal -->
+</div><!-- /help-overlay -->
+
+<footer>Ctrl + Enter で実行　／　入力と同時にリアルタイム変換</footer>
+
+<script>
+/* ═══════════════════════════════════════
+   STYLE DEFINITIONS
+═══════════════════════════════════════ */
+const STYLES = [
+  { id:'arabic',   label:'1 2 3',      fn:n=>String(n) },
+  { id:'wide',     label:'１ ２ ３',   fn:n=>String(n).split('').map(c=>String.fromCodePoint(c.codePointAt(0)+0xFEE0)).join('') },
+  { id:'kanji',    label:'一 二 三',   fn:n=>{
+    const t=['','一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
+             '二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八','二十九','三十'];
+    return t[n]||String(n);
+  }},
+  { id:'circle',   label:'① ② ③',   fn:n=>n<=20?String.fromCodePoint(0x2460+n-1):'('+n+')' },
+  { id:'black',    label:'❶ ❷ ❸',   fn:n=>n<=10?String.fromCodePoint(0x2776+n-1):'【'+n+'】' },
+  { id:'paren',    label:'(1)(2)(3)',  fn:n=>'('+n+')' },
+  { id:'wparen',   label:'（1）（2）', fn:n=>'（'+n+'）' },
+  { id:'bracket',  label:'[1][2][3]',  fn:n=>'['+n+']' },
+  { id:'wbracket', label:'【1】【2】', fn:n=>'【'+n+'】' },
+  { id:'roman',    label:'i ii iii',   fn:n=>toRoman(n).toLowerCase() },
+  { id:'ROMAN',    label:'I II III',   fn:n=>toRoman(n) },
+  { id:'alpha',    label:'a b c',      fn:n=>n<=26?String.fromCharCode(96+n):String(n) },
+  { id:'ALPHA',    label:'A B C',      fn:n=>n<=26?String.fromCharCode(64+n):String(n) },
+];
+
+const SEP_MAP   = {'、':'、',',':'、','.':'. ',' ':' ','）':'）',')':') ','：':'：',':':'：'};
+const SEP_LABEL = {'、':'読点（、）','. ':'ドット（.）','）':'全角括弧','): ':'半角括弧','：':'コロン',' ':'スペース','':'なし'};
+
+function toRoman(n){
+  const v=[1000,900,500,400,100,90,50,40,10,9,5,4,1];
+  const s=['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+  let r=''; for(let i=0;i<v.length;i++) while(n>=v[i]){r+=s[i];n-=v[i];} return r||'?';
+}
+
+/* ═══════════════════════════════════════
+   DETECT INPUT STYLE
+═══════════════════════════════════════ */
+function detectStyleAndSep(lines){
+  for(const raw of lines){
+    const line=raw.trim(); if(!line) continue;
+    if(/^[①-⑳]/.test(line))  return {styleId:'circle',  sep:''};
+    if(/^[❶-❿]/.test(line))  return {styleId:'black',   sep:''};
+    if(/^（\d+）/.test(line))  return {styleId:'wparen',  sep:''};
+    if(/^\(\d+\)/.test(line))  return {styleId:'paren',   sep:''};
+    if(/^\[\d+\]/.test(line))  return {styleId:'bracket', sep:' '};
+    if(/^【\d+】/.test(line))  return {styleId:'wbracket',sep:' '};
+    const mw=line.match(/^[１-９０]+([、,.\s：:(）)])/);
+    if(mw) return {styleId:'wide',  sep:SEP_MAP[mw[1]]??mw[1]};
+    const mk=line.match(/^[一二三四五六七八九十]+([、,.\s）)：:])/);
+    if(mk) return {styleId:'kanji', sep:SEP_MAP[mk[1]]??mk[1]};
+    const mrl=line.match(/^([ivxlcdm]{1,6})([^a-zA-Z])/i);
+    if(mrl && /^[ivxlcdm]+$/i.test(mrl[1])){
+      const lower=mrl[1]===mrl[1].toLowerCase();
+      return {styleId:lower?'roman':'ROMAN', sep:SEP_MAP[mrl[2]]??mrl[2]};
+    }
+    const mal=line.match(/^([a-z])([^a-zA-Z0-9\u3040-\u9fff])/);
+    if(mal) return {styleId:'alpha', sep:SEP_MAP[mal[2]]??mal[2]};
+    const mau=line.match(/^([A-Z])([^a-zA-Z0-9\u3040-\u9fff])/);
+    if(mau) return {styleId:'ALPHA', sep:SEP_MAP[mau[2]]??mau[2]};
+    const ma=line.match(/^\d+([、,.\s）)：: \t])/);
+    if(ma) return {styleId:'arabic', sep:SEP_MAP[ma[1]]??ma[1]};
+    if(/^\d/.test(line)) return {styleId:'arabic', sep:'、'};
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════
+   STRIP NUMBER PREFIX
+═══════════════════════════════════════ */
+const SEP_CLASS = '[、,.\\s）)：:\\]】 \\t]';
+const STRIP_PATS = [
+  /^[①-⑳]\s*/,
+  /^[❶-❿]\s*/,
+  /^（\d+）\s*/,
+  /^\(\d+\)\s*/,
+  /^\[\d+\]\s*/,
+  /^【\d+】\s*/,
+  new RegExp('^[１-９０]+' + SEP_CLASS + '\\s*'),
+  new RegExp('^[一二三四五六七八九十]+' + SEP_CLASS + '\\s*'),
+  new RegExp('^[ivxlcdmIVXLCDM]{1,6}' + SEP_CLASS + '\\s*'),
+  new RegExp('^[a-zA-Z]' + SEP_CLASS + '\\s*'),
+  new RegExp('^\\d+' + SEP_CLASS + '\\s*'),
+];
+function stripNumber(line){
+  for(const p of STRIP_PATS){
+    const m=line.match(p);
+    if(m) return {text:line.slice(m[0].length).trim(), numbered:true};
+  }
+  return {text:line.trim(), numbered:false};
+}
+
+/* ═══════════════════════════════════════
+   ROW SPEC PARSER  e.g. "1,3,5-8,10"
+═══════════════════════════════════════ */
+function parseRowSpec(spec){
+  const set=new Set();
+  spec.split(',').forEach(part=>{
+    part=part.trim();
+    const range=part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if(range){
+      const a=parseInt(range[1]), b=parseInt(range[2]);
+      for(let i=Math.min(a,b);i<=Math.max(a,b);i++) set.add(i);
+    } else {
+      const n=parseInt(part);
+      if(!isNaN(n)) set.add(n);
+    }
+  });
+  return set;
+}
+
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+let mode       = 'auto';
+let blankMode  = 'keep';
+let hlOn       = true;
+let rowFilter  = 'all';   // 'all'|'odd'|'even'|'custom'
+let skipOutput = 'keep';  // 'keep'|'blank'|'remove'
+let advOpen    = false;
+let lastLines  = [];
+
+/* ═══════════════════════════════════════
+   THEME
+═══════════════════════════════════════ */
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme', isDark?'light':'dark');
+  document.getElementById('theme-label').textContent=isDark?'Dark':'Light';
+  // update select arrow color for light mode
+  updateSelectArrow();
+  try{ localStorage.setItem('renumber_theme', isDark?'light':'dark'); }catch(e){}
+}
+function updateSelectArrow(){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const color=isDark?'%235c5878':'%239994b0';
+  const svg=`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='${color}' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")`;
+  document.querySelectorAll('select').forEach(s=>{
+    s.style.backgroundImage=svg;
+  });
+}
+function loadTheme(){
+  try{
+    const t=localStorage.getItem('renumber_theme');
+    if(t){
+      document.documentElement.setAttribute('data-theme',t);
+      document.getElementById('theme-label').textContent=t==='light'?'Dark':'Light';
+      updateSelectArrow();
+    }
+  }catch(e){}
+}
+
+/* ═══════════════════════════════════════
+   CHIP BUILDERS
+═══════════════════════════════════════ */
+function buildChips(){
+  const el=document.getElementById('chips');
+  el.innerHTML='';
+  STYLES.forEach(s=>{
+    const c=document.createElement('span');
+    c.className='chip'+(mode===s.id?' active':'');
+    c.textContent=s.label;
+    c.onclick=()=>setMode(s.id);
+    el.appendChild(c);
+  });
+  document.getElementById('chip-auto').className ='chip'+(mode==='auto'?' active':'');
+  document.getElementById('chip-strip').className='chip chip-strip'+(mode==='strip'?' active':'');
+  renderCustomChips();
+}
+
+function setMode(m){ mode=m; buildChips(); renumber(); }
+
+function setBlankMode(m){
+  blankMode=m;
+  ['keep','skip','remove'].forEach(k=>document.getElementById('tog-'+k).classList.toggle('on',k===m));
+  renumber();
+}
+
+function toggleHl(){
+  hlOn=!hlOn;
+  document.getElementById('tog-hl').classList.toggle('on',hlOn);
+  renderOutput();
+}
+
+function onSepChange(){ renumber(); }
+
+function syncSep(sep){
+  const sel=document.getElementById('sep');
+  const opt=Array.from(sel.options).find(o=>o.value===sep);
+  if(opt) sel.value=sep;
+}
+
+/* ─ advanced panel ─ */
+function toggleAdvPanel(){
+  advOpen=!advOpen;
+  document.getElementById('adv-panel').classList.toggle('open',advOpen);
+  document.getElementById('adv-btn').classList.toggle('active',advOpen);
+}
+
+function setRowFilter(f){
+  rowFilter=f;
+  ['all','odd','even','custom'].forEach(k=>document.getElementById('fc-'+k).classList.toggle('active',k===f));
+  document.getElementById('adv-rows-input').style.display=(f==='custom')?'flex':'none';
+  renumber();
+}
+
+function setSkipOutput(v){
+  skipOutput=v;
+  ['keep','blank','remove'].forEach(k=>document.getElementById('tog-'+k+'-skip').classList.toggle('on',k===v));
+  renumber();
+}
+
+/* ═══════════════════════════════════════
+   RENDER OUTPUT
+═══════════════════════════════════════ */
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderOutput(){
+  const plain=lastLines.map(r=>r.empty?'':r.text).join('\n');
+  const outEl=document.getElementById('out');
+  const richEl=document.getElementById('out-rich');
+  outEl.value=plain;
+  outEl.classList.toggle('has-result',!!plain.trim());
+
+  const hasSpecial=lastLines.some(r=>r.inserted||r.skipped);
+  if(hlOn && hasSpecial){
+    outEl.style.display='none'; richEl.style.display='block';
+    richEl.innerHTML=lastLines.map(r=>{
+      if(r.empty) return '<span style="display:block;height:1.75em;color:var(--text3)"> </span>';
+      const cls=r.skipped?'r-skipped':r.inserted?'r-inserted':'r-normal';
+      return `<span class="${cls}">${esc(r.text)}\n</span>`;
+    }).join('');
+  } else {
+    outEl.style.display='block'; richEl.style.display='none';
+  }
+}
+
+/* ═══════════════════════════════════════
+   MAIN RENUMBER
+═══════════════════════════════════════ */
+function renumber(){
+  const raw=document.getElementById('inp').value;
+  const lines=raw.split('\n');
+  const startNum=Math.max(1,parseInt(document.getElementById('start-num').value)||1);
+  const rowSpecSet = rowFilter==='custom'
+    ? parseRowSpec(document.getElementById('row-spec').value)
+    : null;
+
+  if(!raw.trim()){
+    lastLines=[];
+    renderOutput();
+    document.getElementById('counter').style.display='none';
+    document.getElementById('msg').textContent='';
+    document.getElementById('detect-row').style.display='none';
+    return;
+  }
+
+  /* ─ strip mode ─ */
+  if(mode==='strip'){
+    lastLines=[];
+    let total=0;
+    for(const l of lines){
+      const t=l.trim();
+      if(!t){ if(blankMode!=='remove') lastLines.push({text:'',empty:true,inserted:false,skipped:false}); continue; }
+      lastLines.push({text:stripNumber(t).text, empty:false, inserted:false, skipped:false});
+      total++;
+    }
+    renderOutput();
+    document.getElementById('counter').textContent=total+'項目';
+    document.getElementById('counter').style.display='';
+    document.getElementById('msg').textContent='番号を削除しました。';
+    document.getElementById('detect-row').style.display='none';
+    return;
+  }
+
+  /* ─ resolve style + sep ─ */
+  let styleId,sep;
+  const isCustomMode=customStyles.some(s=>s.id===mode);
+  if(mode==='auto'){
+    const d=detectStyleAndSep(lines);
+    if(d){
+      styleId=d.styleId;
+      sep=(d.sep!=null)?d.sep:document.getElementById('sep').value;
+      syncSep(sep);
+      document.getElementById('detect-badge').textContent=STYLES.find(s=>s.id===styleId)?.label||styleId;
+      document.getElementById('detect-sep-badge').textContent=SEP_LABEL[sep]||('区切り：'+sep);
+      document.getElementById('detect-row').style.display='flex';
+    } else {
+      styleId='arabic'; sep=document.getElementById('sep').value;
+      document.getElementById('detect-row').style.display='none';
+    }
+  } else if(isCustomMode){
+    styleId=mode; sep='';
+    document.getElementById('detect-row').style.display='none';
+  } else {
+    styleId=mode; sep=document.getElementById('sep').value;
+    document.getElementById('detect-row').style.display='none';
+  }
+
+  const styleFn = isCustomMode
+    ? (n=>applyTemplate(customStyles.find(s=>s.id===mode).tpl, n))
+    : (STYLES.find(s=>s.id===styleId)||STYLES[0]).fn;
+
+  lastLines=[];
+  let counter=startNum, inserted=0, skippedCount=0, total=0;
+
+  // Build list of non-empty, non-blank content rows for index tracking
+  // We need a 1-based "content row index" to apply odd/even/custom filter
+  let contentRowIdx=0;
+
+  for(const l of lines){
+    const t=l.trim();
+
+    /* blank line */
+    if(!t){
+      if(blankMode==='remove') continue;
+      lastLines.push({text:'',empty:true,inserted:false,skipped:false});
+      continue;
+    }
+
+    contentRowIdx++;
+    const {text,numbered}=stripNumber(t);
+
+    /* decide whether this row gets a number */
+    let getsNumber=true;
+    if(rowFilter==='odd')    getsNumber = (contentRowIdx%2===1);
+    else if(rowFilter==='even')   getsNumber = (contentRowIdx%2===0);
+    else if(rowFilter==='custom') getsNumber = rowSpecSet.has(contentRowIdx);
+
+    if(!getsNumber){
+      /* handle skip output mode */
+      if(skipOutput==='remove') continue;
+      if(skipOutput==='blank'){
+        lastLines.push({text:'',empty:true,inserted:false,skipped:false});
+        skippedCount++;
+        continue;
+      }
+      /* keep: output original stripped text, mark as skipped */
+      lastLines.push({text:text, empty:false, inserted:false, skipped:true});
+      skippedCount++;
+      total++;
+      continue;
+    }
+
+    const lineText=styleFn(counter++)+sep+text;
+    lastLines.push({text:lineText, empty:false, inserted:!numbered, skipped:false});
+    if(!numbered) inserted++;
+    total++;
+  }
+
+  renderOutput();
+  document.getElementById('counter').textContent=total+'項目';
+  document.getElementById('counter').style.display='';
+
+  const parts=[];
+  if(inserted>0)     parts.push(`挿入項目 ${inserted}件`);
+  if(skippedCount>0) parts.push(`番号スキップ ${skippedCount}行`);
+  document.getElementById('msg').textContent=
+    parts.length>0 ? parts.join('　／　')+'を処理しました。' : '番号を振り直しました。';
+}
+
+/* ═══════════════════════════════════════
+   CUSTOM STYLES
+═══════════════════════════════════════ */
+const CUSTOM_KEY='renumber_custom_styles_v1';
+let customStyles=[];
+
+function loadCustomStyles(){
+  try{ customStyles=JSON.parse(localStorage.getItem(CUSTOM_KEY))||[]; }catch(e){ customStyles=[]; }
+}
+function saveCustomStyles(){
+  try{ localStorage.setItem(CUSTOM_KEY,JSON.stringify(customStyles)); }catch(e){}
+}
+function applyTemplate(tpl,n){
+  return tpl.includes('{n}')?tpl.replace(/\{n\}/g,String(n)):tpl+String(n);
+}
+function updateCpPreview(){
+  const tpl=document.getElementById('cp-tpl').value.trim();
+  const btn=document.getElementById('cp-add-btn');
+  if(!tpl){ document.getElementById('cp-preview').textContent='—'; btn.disabled=true; return; }
+  document.getElementById('cp-preview').textContent=[1,2,3].map(n=>applyTemplate(tpl,n)).join('　');
+  btn.disabled=false;
+}
+function addCustomStyle(){
+  const tpl=document.getElementById('cp-tpl').value.trim();
+  const name=document.getElementById('cp-name').value.trim()||tpl;
+  if(!tpl) return;
+  const id='custom_'+Date.now();
+  customStyles.push({id,label:name,tpl});
+  saveCustomStyles();
+  document.getElementById('cp-tpl').value='';
+  document.getElementById('cp-name').value='';
+  updateCpPreview();
+  setMode(id);
+}
+function deleteCustomStyle(id,e){
+  e.stopPropagation();
+  customStyles=customStyles.filter(s=>s.id!==id);
+  saveCustomStyles();
+  if(mode===id) setMode('auto');
+  else renderCustomChips();
+}
+function escH(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function renderCustomChips(){
+  const list=document.getElementById('cp-list');
+  const row=document.getElementById('cp-list-row');
+  if(customStyles.length===0){ list.innerHTML=''; row.style.display='none'; return; }
+  row.style.display='flex';
+  list.innerHTML='';
+  customStyles.forEach(s=>{
+    const c=document.createElement('span');
+    c.className='chip-custom'+(mode===s.id?' active':'');
+    c.title=s.tpl;
+    c.innerHTML=`<span>${escH(s.label)}</span><span class="chip-del" title="削除">✕</span>`;
+    c.querySelector('span:first-child').onclick=()=>setMode(s.id);
+    c.querySelector('.chip-del').onclick=(e)=>deleteCustomStyle(s.id,e);
+    list.appendChild(c);
+  });
+}
+
+/* ═══════════════════════════════════════
+   COLLAPSIBLE
+═══════════════════════════════════════ */
+function toggleCollapsible(id){
+  const body  =document.getElementById(id+'-body');
+  const head  =document.getElementById(id+'-panel-head')||document.getElementById('custom-panel-head');
+  const arrow =document.getElementById(id+'-arrow');
+  const open  =body.classList.toggle('open');
+  if(head) head.classList.toggle('open',open);
+  if(arrow) arrow.classList.toggle('open',open);
+}
+
+/* ═══════════════════════════════════════
+   UTILS
+═══════════════════════════════════════ */
+function loadExample(){
+  document.getElementById('inp').value=
+`[1] ゼロマキナをサーチ（地獄門効果）
+挿入行
+[2] ゼロマキナをセッティング
+[3] 効果発動`;
+  renumber();
+}
+function clearInp(){ document.getElementById('inp').value=''; renumber(); }
+function copyOut(){
+  const t=document.getElementById('out').value;
+  if(!t) return;
+  navigator.clipboard.writeText(t).then(()=>{
+    const el=document.getElementById('copyok');
+    el.classList.add('show');
+    setTimeout(()=>el.classList.remove('show'),1800);
+  });
+}
+
+/* ═══════════════════════════════════════
+   HELP MODAL
+═══════════════════════════════════════ */
+function openHelp(){
+  document.getElementById('help-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeHelp(){
+  document.getElementById('help-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function overlayClick(e){
+  if(e.target===document.getElementById('help-overlay')) closeHelp();
+}
+function switchTab(idx){
+  document.querySelectorAll('.mtab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.modal-page').forEach((p,i)=>p.classList.toggle('active',i===idx));
+  document.querySelector('.modal-body').scrollTop=0;
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape') closeHelp();
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter') renumber();
+});
+document.getElementById('inp').addEventListener('input', renumber);
+document.getElementById('start-num').addEventListener('input', renumber);
+document.getElementById('row-spec').addEventListener('input', renumber);
+
+loadTheme();
+loadCustomStyles();
+buildChips();
+</script>
+</body>
+</html>
